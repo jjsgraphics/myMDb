@@ -11,3 +11,6 @@ next-env.d.ts
 drizzle/
 supabase/.temp/
 supabase/.branches/
+
+.vercel
+.env*.local

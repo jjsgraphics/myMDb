@@ -12,10 +12,10 @@
     "enrich": "node --env-file-if-exists=.env --experimental-strip-types scripts/enrich.ts"
   },
   "dependencies": {
-    "@auth/drizzle-adapter": "1.7.4",
+    "@auth/drizzle-adapter": "1.11.3",
     "drizzle-orm": "0.38.3",
-    "next": "15.1.6",
-    "next-auth": "5.0.0-beta.25",
+    "next": "15.5.22",
+    "next-auth": "5.0.0-beta.32",
     "postgres": "3.4.5",
     "react": "19.0.0",
     "react-dom": "19.0.0"

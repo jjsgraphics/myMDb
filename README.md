@@ -149,33 +149,44 @@ against the new settings.
 
 ### 5. Deploy
 
-Each of these needs a browser sign-in, so they have to be run by you:
-
 ```bash
 vercel login
-vercel link                        # creates .vercel/project.json
+vercel link                          # creates .vercel/project.json
 
-# Push each secret to all three environments. Values are read from stdin,
-# so nothing lands in your shell history.
-vercel env add DATABASE_URL   production preview development
-vercel env add DIRECT_URL     production preview development
-vercel env add AUTH_SECRET    production preview development
-vercel env add AUTH_URL       production            # your real domain
-vercel env add AUTH_GOOGLE_ID production preview development
-# ...and the rest of the keys in .env.example
+node scripts/push-env.mjs            # dry run — shows what will be sent
+node scripts/push-env.mjs --run      # push .env to all three environments
 
-vercel env pull .env.local --yes   # confirm they round-trip
+vercel deploy                        # preview build, prints a URL
+```
+
+`vercel env add` takes **one** environment per call and reads the value from
+stdin, so [`scripts/push-env.mjs`](scripts/push-env.mjs) loops it for you.
+It deliberately skips two keys:
+
+- `DIRECT_URL` — only drizzle-kit and the seed/enrich scripts use it, and those
+  run on your machine. The deployed app never reads it. Leaving it out also
+  sidesteps the direct host being IPv6-only.
+- `AUTH_URL` — must differ per environment, so set it once you know the domain.
+
+Then close the OAuth loop, which is circular by nature: you need the deployed
+URL before you can register it.
+
+```bash
+vercel env add AUTH_URL production    # paste https://your-domain.com
 vercel deploy --prod
 ```
 
-Set `AUTH_URL` to the deployed origin and add that origin's
-`/api/auth/callback/*` URLs to the Google and Discord OAuth apps, or sign-in
-will fail in production while working fine locally.
+Add `https://your-domain.com/api/auth/callback/google` to the Google OAuth
+client alongside the localhost one. Until that exists, production sign-in fails
+with `redirect_uri_mismatch` while localhost keeps working.
 
-[`vercel.ts`](vercel.ts) pins the function region to `iad1`. Change it to match
-wherever you created the Supabase project — every request makes several Postgres
-round trips, and a cross-continent hop between function and database costs more
-than everything else in the request combined.
+**Preview deployments get a new URL every push**, so OAuth will not work on them
+unless you register each one. Test sign-in on production or on a stable alias.
+
+[`vercel.ts`](vercel.ts) pins the function region to `lhr1` to sit next to the
+Supabase project in `eu-west-2`. Every request makes several Postgres round
+trips, so a cross-continent hop between function and database costs more than
+everything else combined.
 
 ## How a score is built
 

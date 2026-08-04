@@ -22,7 +22,7 @@ const mono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "MyMBb — what everyone actually puts at the top",
+  title: "MyMDb — what everyone actually puts at the top",
   description:
     "Submit your ranked top ten in any category. Every ballot is counted into one public leaderboard.",
 };
@@ -44,7 +44,7 @@ export default async function RootLayout({
                 MyM
               </span>
               <span className="font-display text-[1.35rem] font-extrabold tracking-tight text-tungsten">
-                Bb
+                Db
               </span>
             </Link>
 

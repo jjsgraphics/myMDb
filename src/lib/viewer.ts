@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import { auth, authConfigured } from "@/auth";
+import { hasDatabase } from "@/db";
 
 export type Viewer = {
   id: string;
@@ -25,7 +26,7 @@ export function isAdmin(viewer: Viewer | null): boolean {
   return allowed.includes(viewer.email.toLowerCase());
 }
 
-export const DEMO_COOKIE = "mymbb_demo_id";
+export const DEMO_COOKIE = "mymdb_demo_id";
 
 /**
  * Who is submitting. With auth configured this is the signed-in account; with
@@ -45,6 +46,13 @@ export async function getViewer(): Promise<Viewer | null> {
       isDemo: false,
     };
   }
+
+  // The demo identity is a cookie value, not a row in `users`. Once a database
+  // exists, handing it to the store would violate the ballots→users foreign key
+  // and 500 on submit, so it is only ever valid in the no-database case. With a
+  // database and no OAuth provider configured yet, nobody can vote — which is
+  // correct, because there is no way to tell people apart.
+  if (hasDatabase) return null;
 
   const demoId = (await cookies()).get(DEMO_COOKIE)?.value;
   if (!demoId) return null;

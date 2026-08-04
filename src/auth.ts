@@ -18,9 +18,19 @@ import { db, schema } from "@/db";
  * this kind of list gets shared. Add either or both — providers configure
  * themselves from env vars and the sign-in page only offers what is present.
  */
+// Both halves or neither. A provider registered with an id but no secret looks
+// available on the sign-in page and then fails at the token exchange, which is
+// a much worse experience than simply not offering it.
+export const googleReady = Boolean(
+  process.env.AUTH_GOOGLE_ID && process.env.AUTH_GOOGLE_SECRET,
+);
+export const discordReady = Boolean(
+  process.env.AUTH_DISCORD_ID && process.env.AUTH_DISCORD_SECRET,
+);
+
 const providers: NextAuthConfig["providers"] = [];
-if (process.env.AUTH_GOOGLE_ID) providers.push(Google);
-if (process.env.AUTH_DISCORD_ID) providers.push(Discord);
+if (googleReady) providers.push(Google);
+if (discordReady) providers.push(Discord);
 
 export const authConfigured = providers.length > 0 && Boolean(db);
 

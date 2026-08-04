@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { signIn, authConfigured } from "@/auth";
+import { signIn, authConfigured, googleReady, discordReady } from "@/auth";
 import { getViewer } from "@/lib/viewer";
 
 export const dynamic = "force-dynamic";
@@ -9,8 +9,8 @@ export default async function SignInPage() {
   if (viewer && !viewer.isDemo) redirect("/");
 
   const providers = [
-    process.env.AUTH_GOOGLE_ID ? { id: "google", label: "Continue with Google" } : null,
-    process.env.AUTH_DISCORD_ID ? { id: "discord", label: "Continue with Discord" } : null,
+    googleReady ? { id: "google", label: "Continue with Google" } : null,
+    discordReady ? { id: "discord", label: "Continue with Discord" } : null,
   ].filter((p): p is { id: string; label: string } => Boolean(p));
 
   return (

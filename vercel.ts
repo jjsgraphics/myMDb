@@ -10,11 +10,11 @@ import type { VercelConfig } from "@vercel/config/v1";
 export const config: VercelConfig = {
   framework: "nextjs",
 
-  // Keep functions in the same region as the Supabase project. Every request
-  // makes several round trips to Postgres, so a cross-continent hop between
-  // function and database costs far more than anything else in the request.
-  // Change this to match wherever you created the Supabase project.
-  regions: ["iad1"],
+  // Matched to the Supabase project, which is in eu-west-2 (London). Every
+  // request makes several round trips to Postgres, so a cross-continent hop
+  // between function and database costs far more than anything else in the
+  // request. lhr1 is Vercel's London region.
+  regions: ["lhr1"],
 
   headers: [
     {

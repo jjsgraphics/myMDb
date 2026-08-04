@@ -53,13 +53,25 @@ export default async function RankPage({
           </p>
         )}
 
-        {!viewer && authConfigured && (
+        {!viewer && (
           <p className="mt-5 rounded border border-line bg-surface/60 px-4 py-3 text-sm text-dim">
-            <Link href="/signin" className="text-tungsten hover:underline">
-              Sign in
-            </Link>{" "}
-            to submit. Building a list without an account is fine — it just will
-            not be counted.
+            {authConfigured ? (
+              <>
+                <Link href="/signin" className="text-tungsten hover:underline">
+                  Sign in
+                </Link>{" "}
+                to submit. Building a list without an account is fine — it just
+                will not be counted.
+              </>
+            ) : (
+              <>
+                Voting is closed until sign-in is configured. Ballots have to
+                belong to an account, or one list per person means nothing — add
+                a Google or Discord provider to{" "}
+                <code className="font-mono text-stock">.env</code> to open it.
+                You can still build a list here.
+              </>
+            )}
           </p>
         )}
       </header>

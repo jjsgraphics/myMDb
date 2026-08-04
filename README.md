@@ -1,4 +1,4 @@
-# MyMBb
+# MyMDb
 
 Everyone submits a ranked top ten. Every ballot is counted into one public board.
 
@@ -25,26 +25,55 @@ Demo mode is for looking around. Everything below turns it into a real site.
 
 ## Going real
 
-### 1. Database
+### 1. Database — Supabase
 
-Vercel no longer runs its own Postgres — the product was retired and existing
-databases were migrated to [Neon](https://neon.tech), which is now Vercel's
-first-party integration. So the answer to "do I host the database on Vercel" is:
-you host the *app* on Vercel and click through to Neon for the database. Its
-free tier is comfortably enough to launch on. Supabase is the equally good
-alternative if you would rather have auth, storage and Postgres from one vendor.
+Vercel no longer sells a database of its own; you host the *app* on Vercel and
+bring your own Postgres. This project uses [Supabase](https://supabase.com).
 
-Any Postgres works:
+Two connection strings, both from **Project → Connect** in the dashboard. They
+are not interchangeable:
 
 ```bash
 # .env
-DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
+
+# Pooled — the running app. Supavisor transaction mode, port 6543.
+DATABASE_URL="postgresql://postgres.PROJECTREF:PASSWORD@aws-0-REGION.pooler.supabase.com:6543/postgres"
+
+# Direct — schema changes only. Port 5432.
+DIRECT_URL="postgresql://postgres:PASSWORD@db.PROJECTREF.supabase.co:5432/postgres"
 ```
+
+Serverless functions open many short-lived connections and would exhaust
+Postgres directly, so the app goes through the pooler. Transaction mode cannot
+support prepared statements, so [`src/db/index.ts`](src/db/index.ts) detects the
+pooler hostname and disables them — without that you get
+`prepared statement already exists` errors that only appear under concurrency.
+
+Migrations need a real session, so they use `DIRECT_URL`. That host is IPv6-only
+unless you have Supabase's IPv4 add-on; on an IPv4-only network use the *session*
+pooler (same pooler host, port 5432) for `DIRECT_URL` instead.
 
 ```bash
 npm run db:push    # create the tables
 npm run db:seed    # load the starter categories and title pool
 ```
+
+Then apply the Data API lockdown — **do not skip this**:
+
+```bash
+npx supabase link --project-ref PROJECTREF
+npx supabase db push
+```
+
+Or paste [`supabase/migrations/20260804000001_lock_down_data_api.sql`](supabase/migrations/20260804000001_lock_down_data_api.sql)
+into the dashboard SQL editor.
+
+Supabase publishes the `public` schema over REST at `/rest/v1/<table>`. Without
+that migration, anyone holding the publishable key — which ships to every
+browser — can `POST` straight into `ballots` and invent as many votes as they
+want, never touching the API that enforces one-ballot-per-person. The migration
+enables RLS with no policies and revokes the API roles' privileges. The app is
+unaffected because it connects as `postgres`, which has `BYPASSRLS`.
 
 The moment `DATABASE_URL` is set, `src/lib/store.ts` switches every read and
 write from the in-memory store to Postgres. No other code changes.
@@ -120,9 +149,33 @@ against the new settings.
 
 ### 5. Deploy
 
-Push to GitHub, import into Vercel, add the environment variables, attach a Neon
-database from the integrations tab. `npm run db:push` against the production
-`DATABASE_URL` once, and it is live.
+Each of these needs a browser sign-in, so they have to be run by you:
+
+```bash
+vercel login
+vercel link                        # creates .vercel/project.json
+
+# Push each secret to all three environments. Values are read from stdin,
+# so nothing lands in your shell history.
+vercel env add DATABASE_URL   production preview development
+vercel env add DIRECT_URL     production preview development
+vercel env add AUTH_SECRET    production preview development
+vercel env add AUTH_URL       production            # your real domain
+vercel env add AUTH_GOOGLE_ID production preview development
+# ...and the rest of the keys in .env.example
+
+vercel env pull .env.local --yes   # confirm they round-trip
+vercel deploy --prod
+```
+
+Set `AUTH_URL` to the deployed origin and add that origin's
+`/api/auth/callback/*` URLs to the Google and Discord OAuth apps, or sign-in
+will fail in production while working fine locally.
+
+[`vercel.ts`](vercel.ts) pins the function region to `iad1`. Change it to match
+wherever you created the Supabase project — every request makes several Postgres
+round trips, and a cross-continent hop between function and database costs more
+than everything else in the request combined.
 
 ## How a score is built
 

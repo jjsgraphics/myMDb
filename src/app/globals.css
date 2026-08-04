@@ -1,0 +1,91 @@
+@import "tailwindcss";
+
+/* ---------------------------------------------------------------------------
+ * MyMBb — projection booth.
+ *
+ * The palette comes from the room a film is shown from rather than the screen:
+ * a blue-black dark, warm tungsten for the lamp, cool film-stock cyan for the
+ * daylight-balanced end. Those two accents are not decoration — they are the
+ * scale that encodes ballot rank everywhere in the product, amber for a first
+ * pick cooling to cyan at tenth.
+ * ------------------------------------------------------------------------ */
+
+@theme {
+  --color-ink: #0b0e14;
+  --color-surface: #131824;
+  --color-raised: #1a2130;
+  --color-line: #242d3e;
+  --color-bone: #e9e5dc;
+  --color-dim: #79839a;
+  --color-tungsten: #ffae3b;
+  --color-stock: #58c7d8;
+
+  --font-display: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono), ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--color-ink);
+    color-scheme: dark;
+  }
+
+  body {
+    background:
+      radial-gradient(
+        90rem 40rem at 50% -12rem,
+        color-mix(in oklab, var(--color-tungsten) 9%, transparent),
+        transparent 70%
+      ),
+      var(--color-ink);
+    color: var(--color-bone);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Ranks and point totals are the content here, so figures must never
+     shuffle width as they change. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum";
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-tungsten) 35%, transparent);
+    color: var(--color-bone);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-tungsten);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+}
+
+@layer components {
+  /* The eyebrow: small, spaced, mono. Used for counts and labels that are
+     data rather than prose. */
+  .eyebrow {
+    font-family: var(--font-mono);
+    font-size: 0.6875rem;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--color-dim);
+  }
+
+  .rule {
+    border-top: 1px solid var(--color-line);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

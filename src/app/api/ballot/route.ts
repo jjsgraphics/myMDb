@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { getCategory, ensureTitle, submitBallot } from "@/lib/store";
+import { limitKey, rateLimit, retryHeaders } from "@/lib/rate-limit";
 import { validateBallot } from "@/lib/scoring";
 import { getViewer } from "@/lib/viewer";
 
@@ -23,6 +24,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { error: "Sign in to submit a ballot." },
       { status: 401 },
+    );
+  }
+
+  // Every accepted submit triggers a full recount for the category, so this is
+  // throttled per account rather than per address: one person editing their
+  // list a few times is normal, one account looping submits is not.
+  const limited = rateLimit(limitKey(req, "ballot", viewer.id), 20, 60_000);
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "You are submitting very fast. Try again shortly." },
+      { status: 429, headers: retryHeaders(limited.retryAfter) },
     );
   }
 

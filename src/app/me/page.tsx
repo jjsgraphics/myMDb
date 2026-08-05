@@ -1,14 +1,77 @@
 import Link from "next/link";
 import { MyPicks } from "@/components/MyPicks";
-import { getMyLists } from "@/lib/store";
+import { deleteAccount, getMyLists } from "@/lib/store";
 import { getViewer } from "@/lib/viewer";
-import { authConfigured } from "@/auth";
+import { authConfigured, signOut } from "@/auth";
 
 export const dynamic = "force-dynamic";
 
 export const metadata = {
   title: "Your lists — MyMDb",
 };
+
+/**
+ * Account deletion.
+ *
+ * Behind a disclosure and a typed confirmation because it is irreversible and
+ * sits on the same page as the ordinary "edit list" links — a bare button one
+ * click from someone's ballots is an accident waiting to happen.
+ */
+async function DangerZone() {
+  async function destroy(formData: FormData) {
+    "use server";
+    const me = await getViewer();
+    if (!me || me.isDemo) throw new Error("Not signed in.");
+
+    const typed = String(formData.get("confirm") ?? "")
+      .trim()
+      .toLowerCase();
+    if (typed !== "delete") throw new Error('Type "delete" to confirm.');
+
+    await deleteAccount(me.id);
+    // The cascade already removed the session row; this clears the cookie and
+    // sends them somewhere that still exists.
+    await signOut({ redirectTo: "/" });
+  }
+
+  return (
+    <section className="mt-12 border-t border-line/70 pt-8">
+      <details className="group">
+        <summary className="eyebrow cursor-pointer list-none transition-colors hover:text-bone">
+          Delete account ▸
+        </summary>
+
+        <div className="mt-5 max-w-xl rounded border border-line bg-surface/60 p-4">
+          <p className="text-sm leading-relaxed text-dim">
+            This removes your account and every ballot you have cast. The boards
+            are recounted without your votes straight away. It cannot be undone,
+            and signing back in creates a new, empty account.
+          </p>
+
+          <form action={destroy} className="mt-4 flex flex-wrap items-center gap-3">
+            <label className="sr-only" htmlFor="confirm">
+              Type delete to confirm
+            </label>
+            <input
+              id="confirm"
+              name="confirm"
+              required
+              autoComplete="off"
+              placeholder="type delete"
+              className="rounded border border-line bg-ink px-3 py-2 text-sm placeholder:text-dim/60 focus:border-tungsten focus:outline-none"
+            />
+            <button
+              type="submit"
+              className="rounded-full border border-tungsten/50 px-4 py-2 text-sm font-medium text-tungsten transition-colors hover:bg-tungsten hover:text-ink"
+            >
+              Delete my account
+            </button>
+          </form>
+        </div>
+      </details>
+    </section>
+  );
+}
 
 export default async function ProfilePage() {
   const viewer = await getViewer();
@@ -119,8 +182,10 @@ export default async function ProfilePage() {
         </ul>
       )}
 
+      {!viewer.isDemo && <DangerZone />}
+
       {empty.length > 0 && (
-        <section className="py-10">
+        <section className="pt-10 pb-0">
           <h2 className="eyebrow">Not ranked yet</h2>
           <ul className="mt-4 flex flex-wrap gap-2">
             {empty.map(({ category }) => (

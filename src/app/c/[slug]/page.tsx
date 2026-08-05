@@ -105,7 +105,7 @@ export default async function CategoryPage({
 
               <div className="min-w-0">
                 <div className="flex items-baseline gap-2">
-                  <h2 className="truncate text-[0.95rem] font-medium">
+                  <h2 className="min-w-0 truncate text-[0.95rem] font-medium">
                     <ImdbLink
                       title={row.title}
                       className="underline-offset-2 transition-colors hover:text-tungsten hover:underline"

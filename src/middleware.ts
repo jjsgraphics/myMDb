@@ -1,10 +1,19 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { DEMO_COOKIE } from "@/lib/viewer";
+import { DEMO_COOKIE } from "@/lib/demo-cookie";
 
 /** Gives every browser a stable demo identity so the ballot builder works
  *  before OAuth is configured. Harmless once real sign-in is switched on —
- *  `getViewer` stops reading it. */
+ *  `getViewer` stops reading it.
+ *
+ *  Imports only a string constant on purpose: this runs in the Edge runtime on
+ *  every request, and reaching into `@/lib/viewer` would pull the Postgres
+ *  driver in with it. */
 export function middleware(req: NextRequest) {
+  // With a database configured this cookie is never read — `getViewer` only
+  // consults it when there is no database — so skip the work entirely rather
+  // than setting something nothing will look at.
+  if (process.env.DATABASE_URL) return NextResponse.next();
+
   const res = NextResponse.next();
   if (!req.cookies.get(DEMO_COOKIE)) {
     res.cookies.set(DEMO_COOKIE, `demo_${crypto.randomUUID()}`, {

@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Bricolage_Grotesque, IBM_Plex_Mono, IBM_Plex_Sans } from "next/font/google";
-import { getViewer } from "@/lib/viewer";
+import { getViewer, isAdmin } from "@/lib/viewer";
+import { siteUrl } from "@/lib/site";
 import { authConfigured } from "@/auth";
 import "./globals.css";
 
@@ -21,10 +22,27 @@ const mono = IBM_Plex_Mono({
   weight: ["400", "500"],
 });
 
+const DESCRIPTION =
+  "Submit your ranked top ten in any category. Every ballot is counted into one public leaderboard.";
+
 export const metadata: Metadata = {
+  // Absolute base for the Open Graph tags below. Without it Next emits relative
+  // URLs and the share card silently fails to render.
+  metadataBase: siteUrl(),
   title: "MyMDb — what everyone actually puts at the top",
-  description:
-    "Submit your ranked top ten in any category. Every ballot is counted into one public leaderboard.",
+  description: DESCRIPTION,
+  openGraph: {
+    type: "website",
+    siteName: "MyMDb",
+    title: "MyMDb — what everyone actually puts at the top",
+    description: DESCRIPTION,
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "MyMDb — what everyone actually puts at the top",
+    description: DESCRIPTION,
+  },
 };
 
 export default async function RootLayout({
@@ -57,16 +75,21 @@ export default async function RootLayout({
                   Your lists
                 </Link>
               ) : null}
-              <Link href="/admin" className="transition-colors hover:text-bone">
-                Manage
-              </Link>
+              {/* Not a security boundary — the server actions in /admin re-check
+                  isAdmin themselves. This just stops the site advertising an
+                  admin surface to every visitor. */}
+              {isAdmin(viewer) ? (
+                <Link href="/admin" className="transition-colors hover:text-bone">
+                  Manage
+                </Link>
+              ) : null}
             </nav>
 
             <div className="ml-auto flex items-center gap-3">
               {viewer ? (
                 <Link
                   href="/me"
-                  className="eyebrow max-w-[12rem] truncate transition-colors hover:text-bone"
+                  className="eyebrow min-w-0 max-w-[12rem] truncate transition-colors hover:text-bone"
                 >
                   {viewer.name}
                 </Link>
@@ -89,6 +112,11 @@ export default async function RootLayout({
             <p className="max-w-xl">
               Points come from ranked ballots, not star ratings. Your first pick
               is worth ten points, your tenth is worth one.
+            </p>
+            <p className="mt-4 text-xs">
+              <Link href="/privacy" className="transition-colors hover:text-bone">
+                Privacy
+              </Link>
             </p>
             <p className="mt-4 text-xs">
               Title data and artwork from{" "}

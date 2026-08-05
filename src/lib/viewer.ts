@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { auth, authConfigured } from "@/auth";
 import { hasDatabase } from "@/db";
+import { DEMO_COOKIE } from "@/lib/demo-cookie";
 
 export type Viewer = {
   id: string;
@@ -26,7 +27,9 @@ export function isAdmin(viewer: Viewer | null): boolean {
   return allowed.includes(viewer.email.toLowerCase());
 }
 
-export const DEMO_COOKIE = "mymdb_demo_id";
+// Re-exported so existing callers keep working; the definition lives in a leaf
+// module the Edge middleware can import without pulling in the database.
+export { DEMO_COOKIE };
 
 /**
  * Who is submitting. With auth configured this is the signed-in account; with

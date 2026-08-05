@@ -455,6 +455,20 @@ type Tx = Parameters<Parameters<Db["transaction"]>[0]>[0];
 /** Rebuild the materialised board for one category. Called inside the same
  *  transaction as the ballot write so readers never see a stale board. */
 async function recomputeStandings(tx: Db | Tx, categoryId: string) {
+  // Serialise recomputes per category.
+  //
+  // Two people submitting to the same category at once would otherwise both
+  // DELETE and re-INSERT the same standings rows inside overlapping
+  // transactions, which is a textbook deadlock: each holds rows the other
+  // wants. Postgres resolves that by killing one of them, so somebody loses a
+  // ballot they were told was saved.
+  //
+  // An advisory lock turns that collision into a short wait instead. It is
+  // transaction-scoped, so it is released on commit or rollback with no
+  // cleanup, and it only blocks writers to the *same* category — different
+  // boards still recompute in parallel.
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${categoryId}))`);
+
   const [category] = await tx
     .select()
     .from(schema.categories)
@@ -494,6 +508,33 @@ async function recomputeStandings(tx: Db | Tx, categoryId: string) {
         position: s.position,
       })),
     );
+  }
+}
+
+/**
+ * Erase a person and everything they submitted.
+ *
+ * The foreign keys cascade from `users` through ballots to ballot entries, so
+ * the votes go with the account. Standings do not: they are a materialised copy
+ * of those votes, so every board the person appeared on has to be recounted or
+ * their picks keep contributing points after they have gone — which would make
+ * the deletion a lie.
+ *
+ * Categories are collected before the delete, because afterwards there is no
+ * row left to tell us which boards were affected.
+ */
+export async function deleteAccount(userId: string): Promise<void> {
+  if (!db) throw new Error("Deleting an account needs a database.");
+
+  const affected = await db
+    .selectDistinct({ categoryId: schema.ballots.categoryId })
+    .from(schema.ballots)
+    .where(eq(schema.ballots.userId, userId));
+
+  await db.delete(schema.users).where(eq(schema.users.id, userId));
+
+  for (const { categoryId } of affected) {
+    await db.transaction((tx) => recomputeStandings(tx, categoryId));
   }
 }
 

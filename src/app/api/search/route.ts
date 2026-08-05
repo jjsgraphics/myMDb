@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { searchLocalTitles } from "@/lib/store";
+import { limitKey, rateLimit, retryHeaders } from "@/lib/rate-limit";
 import { searchTmdb, tmdbConfigured } from "@/lib/tmdb";
 
 export type SearchItem = {
@@ -20,6 +21,18 @@ export type SearchItem = {
  * bare install.
  */
 export async function GET(req: NextRequest) {
+  // This endpoint spends our TMDB quota on behalf of anonymous callers, so it
+  // is the one worth capping. The builder debounces at 250ms and aborts in
+  // flight, so 60/minute is far above what typing a ten-title list costs and
+  // well below what a scripted loop would.
+  const limited = rateLimit(limitKey(req, "search"), 60, 60_000);
+  if (!limited.ok) {
+    return NextResponse.json(
+      { error: "Too many searches. Give it a moment." },
+      { status: 429, headers: retryHeaders(limited.retryAfter) },
+    );
+  }
+
   const q = req.nextUrl.searchParams.get("q") ?? "";
   const kindParam = req.nextUrl.searchParams.get("kind") ?? "any";
   const kind = (["movie", "tv", "any"] as const).includes(kindParam as never)

@@ -143,18 +143,25 @@ function CategoryCard({ board, picks }: { board: Board; picks: MyPick[] }) {
       </div>
 
       {podium.length ? (
-        <div className="flex items-stretch gap-2">
+        // A fixed three-column grid rather than flex: a category with one
+        // qualifying title should show one poster the same size as everybody
+        // else's, not one poster stretched across the whole card.
+        <div className="grid grid-cols-3 gap-2">
           {podium.map((row) => (
-            <div key={row.title.id} className="flex-1">
+            // min-w-0 is load-bearing. Grid and flex items both default to
+            // min-width:auto, and the label below sets white-space:nowrap, so
+            // without it each column is forced as wide as its untruncated title
+            // and the posters burst out of the card.
+            <div key={row.title.id} className="min-w-0">
               <Poster title={row.title} className="w-full" />
               <div className="mt-2 flex items-baseline gap-1.5">
                 <span
-                  className="tnum font-mono text-[0.7rem]"
+                  className="tnum shrink-0 font-mono text-[0.7rem]"
                   style={{ color: rankColor(row.position, 3) }}
                 >
                   {row.position}
                 </span>
-                <span className="truncate text-[0.72rem] leading-tight text-dim">
+                <span className="min-w-0 truncate text-[0.72rem] leading-tight text-dim">
                   {row.title.name}
                 </span>
               </div>
@@ -220,7 +227,7 @@ function RankedBadge({ picks, maxPicks }: { picks: MyPick[]; maxPicks: number })
               >
                 {pick.rank}
               </span>
-              <span className="truncate">{pick.title.name}</span>
+              <span className="min-w-0 truncate">{pick.title.name}</span>
             </li>
           ))}
         </ol>

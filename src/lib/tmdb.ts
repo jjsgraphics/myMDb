@@ -92,6 +92,23 @@ export async function searchTmdb(
     .slice(0, 20);
 }
 
+/**
+ * The IMDb id for a title we already matched to TMDB.
+ *
+ * A separate call because TMDB only carries external ids on the detail
+ * endpoints, not on search results — which is why `imdbId` stays null until the
+ * enrich script backfills it.
+ */
+export async function fetchImdbId(
+  tmdbId: number,
+  mediaType: "movie" | "tv",
+): Promise<string | null> {
+  const data = await get(`/${mediaType}/${tmdbId}/external_ids`, {});
+  const id = (data as { imdb_id?: unknown }).imdb_id;
+  // Series often come back with the field present but empty.
+  return typeof id === "string" && id.startsWith("tt") ? id : null;
+}
+
 /** Best single match for a name/year pair. Used by the enrich script. */
 export async function lookupTmdb(
   name: string,

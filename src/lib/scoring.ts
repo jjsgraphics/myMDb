@@ -78,6 +78,20 @@ export function computeStandings(
 }
 
 /**
+ * Points rescaled to a familiar 0–10, with the category leader at 10.0.
+ *
+ * Points stay the honest unit — they are literally what the ballots add up to —
+ * but their magnitude depends on turnout, so "258" means nothing on its own and
+ * is not comparable between a busy category and a quiet one. The ratio to the
+ * leader is stable across both, and it reads next to an IMDb score without
+ * pretending to be one: this is still a Borda count, not an average of stars.
+ */
+export function ratingOutOf10(points: number, leaderPoints: number): number {
+  if (leaderPoints <= 0 || points <= 0) return 0;
+  return Math.round((points / leaderPoints) * 100) / 10;
+}
+
+/**
  * Reject a ballot before it reaches the database.
  *
  * Returns null when the ballot is fine, or a message written for the person

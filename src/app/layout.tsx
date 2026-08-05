@@ -39,7 +39,7 @@ export default async function RootLayout({
       <body className="min-h-dvh">
         <header className="sticky top-0 z-40 border-b border-line/70 bg-ink/85 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-6 px-5">
-            <Link href="/" className="group flex items-baseline gap-[1px]">
+            <Link href="/" className="group flex items-baseline gap-[0px]">
               <span className="font-display text-[1.35rem] font-extrabold tracking-tight text-bone">
                 MyM
               </span>
@@ -52,6 +52,11 @@ export default async function RootLayout({
               <Link href="/" className="transition-colors hover:text-bone">
                 Categories
               </Link>
+              {viewer ? (
+                <Link href="/me" className="transition-colors hover:text-bone">
+                  Your lists
+                </Link>
+              ) : null}
               <Link href="/admin" className="transition-colors hover:text-bone">
                 Manage
               </Link>
@@ -59,7 +64,12 @@ export default async function RootLayout({
 
             <div className="ml-auto flex items-center gap-3">
               {viewer ? (
-                <span className="eyebrow truncate max-w-[12rem]">{viewer.name}</span>
+                <Link
+                  href="/me"
+                  className="eyebrow max-w-[12rem] truncate transition-colors hover:text-bone"
+                >
+                  {viewer.name}
+                </Link>
               ) : authConfigured ? (
                 <Link
                   href="/signin"

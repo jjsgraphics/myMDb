@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, sql } from "drizzle-orm";
 import { db, hasDatabase, schema } from "@/db";
 import { computeStandings, type BallotRow } from "./scoring";
 import { DEMO_AFFINITY, SEED_CATEGORIES, SEED_TITLES } from "./seed-data";
+import { fetchImdbId, tmdbConfigured } from "./tmdb";
 
 export type Category = {
   id: string;
@@ -20,6 +21,8 @@ export type Title = {
   name: string;
   year: number | null;
   posterPath: string | null;
+  /** Set once `npm run enrich` has backfilled it. Null means no IMDb link. */
+  imdbId: string | null;
 };
 
 export type BoardRow = {
@@ -34,6 +37,21 @@ export type Board = {
   category: Category;
   rows: BoardRow[];
   totalBallots: number;
+};
+
+/** One of the viewer's own picks, carrying both numbers that matter: where they
+ *  put it, and where everybody else did. */
+export type MyPick = {
+  rank: number;
+  title: Title;
+  /** Position on the public board, or null when the title has not reached the
+   *  category's minimum ballot count and so is not on the board at all. */
+  globalPosition: number | null;
+};
+
+export type MyList = {
+  category: Category;
+  picks: MyPick[];
 };
 
 /* =========================================================================
@@ -83,6 +101,7 @@ function demo(): DemoState {
     name: t.name,
     year: t.year,
     posterPath: null,
+    imdbId: null,
   }));
   const byName = new Map(titles.map((t) => [t.name, t]));
 
@@ -242,6 +261,138 @@ export async function getMyBallot(
     .orderBy(asc(schema.ballotEntries.rank));
 
   return rows.map((r) => toTitle(r.title));
+}
+
+/**
+ * Every pick the viewer has made, grouped by category id.
+ *
+ * Deliberately one query for all categories rather than one per category: the
+ * profile page needs the lot, and the board page passes a `categoryId` to
+ * narrow the same query rather than running a different one.
+ */
+async function loadMyPicks(
+  userId: string,
+  categoryId?: string,
+): Promise<Map<string, MyPick[]>> {
+  const out = new Map<string, MyPick[]>();
+
+  if (!db) {
+    const state = demo();
+    const cats = categoryId
+      ? state.categories.filter((c) => c.id === categoryId)
+      : state.categories;
+    const byId = new Map(state.titles.map((t) => [t.id, t]));
+
+    for (const cat of cats) {
+      const perCat = state.ballots.get(cat.slug) ?? new Map<string, string[]>();
+      const mine = perCat.get(userId);
+      if (!mine?.length) continue;
+
+      // Positions come from the same fold the board uses, so a number shown
+      // here cannot disagree with the same number shown on the board.
+      const entries: BallotRow[] = [];
+      for (const picks of perCat.values()) {
+        picks.forEach((titleId, i) => entries.push({ titleId, rank: i + 1 }));
+      }
+      const position = new Map(
+        computeStandings(entries, cat).map((s) => [s.titleId, s.position]),
+      );
+
+      out.set(
+        cat.id,
+        mine.flatMap((titleId, i) => {
+          const title = byId.get(titleId);
+          return title
+            ? [
+                {
+                  rank: i + 1,
+                  title,
+                  globalPosition: position.get(titleId) ?? null,
+                },
+              ]
+            : [];
+        }),
+      );
+    }
+    return out;
+  }
+
+  // Left join, not inner: a pick that has not cleared minBallots has no
+  // standings row, and dropping it here would silently shorten the list the
+  // person actually submitted.
+  const rows = await db
+    .select({
+      categoryId: schema.ballots.categoryId,
+      rank: schema.ballotEntries.rank,
+      title: schema.titles,
+      globalPosition: schema.standings.position,
+    })
+    .from(schema.ballots)
+    .innerJoin(
+      schema.ballotEntries,
+      eq(schema.ballotEntries.ballotId, schema.ballots.id),
+    )
+    .innerJoin(schema.titles, eq(schema.titles.id, schema.ballotEntries.titleId))
+    .leftJoin(
+      schema.standings,
+      and(
+        eq(schema.standings.categoryId, schema.ballots.categoryId),
+        eq(schema.standings.titleId, schema.ballotEntries.titleId),
+      ),
+    )
+    .where(
+      categoryId
+        ? and(
+            eq(schema.ballots.userId, userId),
+            eq(schema.ballots.categoryId, categoryId),
+          )
+        : eq(schema.ballots.userId, userId),
+    )
+    .orderBy(asc(schema.ballotEntries.rank));
+
+  // Rank-ascending overall, so appending in row order leaves each category's
+  // list rank-ascending too.
+  for (const r of rows) {
+    const list = out.get(r.categoryId);
+    const pick = {
+      rank: r.rank,
+      title: toTitle(r.title),
+      globalPosition: r.globalPosition,
+    };
+    if (list) list.push(pick);
+    else out.set(r.categoryId, [pick]);
+  }
+  return out;
+}
+
+/** The viewer's own ranked list for one category. */
+export async function getMyPicks(
+  userId: string,
+  categoryId: string,
+): Promise<MyPick[]> {
+  return (await loadMyPicks(userId, categoryId)).get(categoryId) ?? [];
+}
+
+/** Every pick the viewer has made, keyed by category id. For callers that
+ *  already hold the categories and only need the picks to hang off them. */
+export async function getMyPicksByCategory(
+  userId: string,
+): Promise<Map<string, MyPick[]>> {
+  return loadMyPicks(userId);
+}
+
+/** Every category paired with the viewer's list for it. Categories they have
+ *  not voted in come back with an empty `picks` rather than being omitted, so
+ *  the profile can show what is left to rank as well as what is done. */
+export async function getMyLists(userId: string): Promise<MyList[]> {
+  const [categories, picks] = await Promise.all([
+    listCategories(),
+    loadMyPicks(userId),
+  ]);
+  return categories.map((category) => ({
+    category,
+    picks: picks.get(category.id) ?? [],
+  }));
 }
 
 /**
@@ -429,6 +580,7 @@ export async function ensureTitle(input: {
       name: input.name,
       year: input.year,
       posterPath: input.posterPath,
+      imdbId: null,
     };
     state.titles.push(created);
     state.byName.set(created.name, created);
@@ -443,7 +595,30 @@ export async function ensureTitle(input: {
       set: { name: input.name, posterPath: input.posterPath },
     })
     .returning();
-  return toTitle(row);
+
+  if (row.imdbId || !tmdbConfigured) return toTitle(row);
+
+  // A title arriving through the ballot builder has no IMDb id yet: TMDB only
+  // carries external ids on its detail endpoints, never on search results. Fetch
+  // it now so a newly nominated title links out straight away instead of staying
+  // dead until someone next runs `npm run enrich`.
+  //
+  // Losing the ballot over this would be absurd, so a TMDB failure degrades to an
+  // unlinked title and the enrich script picks it up later.
+  try {
+    const imdbId = await fetchImdbId(input.tmdbId, input.mediaType);
+    if (!imdbId) return toTitle(row);
+
+    const [updated] = await db
+      .update(schema.titles)
+      .set({ imdbId })
+      .where(eq(schema.titles.id, row.id))
+      .returning();
+    return toTitle(updated ?? row);
+  } catch (err) {
+    console.error(`IMDb id lookup failed for ${input.name}`, err);
+    return toTitle(row);
+  }
 }
 
 /* --- admin ------------------------------------------------------------- */
@@ -501,6 +676,7 @@ function toTitle(r: TitleRow): Title {
     name: r.name,
     year: r.year,
     posterPath: r.posterPath,
+    imdbId: r.imdbId,
   };
 }
 

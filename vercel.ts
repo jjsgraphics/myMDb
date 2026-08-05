@@ -1,35 +1,6 @@
 import type { VercelConfig } from "@vercel/config/v1";
 
 /**
- * Content Security Policy, derived from what the app actually loads.
- *
- * `unsafe-inline` on scripts is not laziness: Next inlines its bootstrap and
- * streams RSC payloads through inline <script> tags, so removing it means
- * threading a per-request nonce through middleware. That is worth doing later
- * and is not worth risking on launch day, when a CSP mistake takes the whole
- * site down rather than degrading it.
- *
- * Everything else is tight. If a future change adds an external script, an
- * embed, or a new image host, it will be blocked until it is listed here —
- * which is the point.
- */
-const CSP = [
-  "default-src 'self'",
-  // Posters come straight from TMDB; the avatar hosts are the two providers in
-  // src/auth.ts, since Viewer carries an image URL.
-  "img-src 'self' data: https://image.tmdb.org https://lh3.googleusercontent.com https://cdn.discordapp.com",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline'",
-  // next/font self-hosts at build time, so no external font origin is needed.
-  "font-src 'self' data:",
-  "connect-src 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "object-src 'none'",
-].join("; ");
-
-/**
  * Vercel project configuration.
  *
  * Deliberately thin. Every page in this app is `force-dynamic` — boards change
@@ -67,7 +38,26 @@ export const config: VercelConfig = {
           value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
         },
 
-        { key: "Content-Security-Policy", value: CSP },
+        // Content Security Policy, derived from what the app actually loads:
+        // posters from TMDB, avatars from the two providers in src/auth.ts,
+        // fonts self-hosted by next/font, and nothing else external at all.
+        //
+        // `unsafe-inline` on scripts is not laziness — Next inlines its
+        // bootstrap and streams RSC payloads through inline <script> tags, so
+        // removing it means threading a per-request nonce through middleware.
+        // Worth doing later; not worth risking on launch day, when a CSP
+        // mistake takes the site down rather than degrading it.
+        //
+        // Kept as one literal string on purpose. Building it from a `const`
+        // above and referencing it here is what failed Vercel's schema
+        // validation with "headers[0].headers[5] missing required property
+        // value" — the platform did not resolve the identifier, even though
+        // `@vercel/config validate` locally did. Do not refactor it back out.
+        {
+          key: "Content-Security-Policy",
+          value:
+            "default-src 'self'; img-src 'self' data: https://image.tmdb.org https://lh3.googleusercontent.com https://cdn.discordapp.com; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'",
+        },
       ],
     },
   ],
